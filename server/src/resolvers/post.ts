@@ -63,12 +63,7 @@ export class PostResolver {
     set p.points = p.points + $1
     where p.id = $2
     `);
-    await Post.update(
-      {
-        id: postId,
-      },
-      {}
-    );
+
     return true;
   }
 
