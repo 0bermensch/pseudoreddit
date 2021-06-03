@@ -26,7 +26,7 @@ const Post_1 = require("../entities/Post");
 const type_graphql_1 = require("type-graphql");
 const isAuth_1 = require("../middleware/isAuth");
 const typeorm_1 = require("typeorm");
-const Upvote_1 = require("src/entities/Upvote");
+const Upvote_1 = require("../entities/Upvote");
 let PostInput = class PostInput {
 };
 __decorate([
@@ -62,42 +62,60 @@ let PostResolver = class PostResolver {
             const isUpvote = value !== -1;
             const realValue = isUpvote ? 1 : -1;
             const { userId } = req.session;
-            yield Upvote_1.Upvote.insert({
-                userId,
-                postId,
-                value: realValue,
-            });
-            typeorm_1.getConnection().query(`
-    update post p
-    set p.points = p.points + $1
-    where p.id = $2
-    `);
-            yield Post_1.Post.update({
-                id: postId,
-            }, {});
+            const upvote = yield Upvote_1.Upvote.findOne({ where: { postId, userId } });
+            if (upvote && upvote.value !== realValue) {
+                yield typeorm_1.getConnection().transaction((tm) => __awaiter(this, void 0, void 0, function* () {
+                    yield tm.query(`
+    update upvote
+    set value = $1
+    where "postId" = $2 and "userId" = $3
+        `, [realValue, postId, userId]);
+                    yield tm.query(`
+          update post
+          set points = points + $1
+          where id = $2
+        `, [2 * realValue, postId]);
+                }));
+            }
+            else if (!upvote) {
+                yield typeorm_1.getConnection().transaction((tm) => __awaiter(this, void 0, void 0, function* () {
+                    yield tm.query(`
+    insert into upvote ("userId", "postId", value)
+    values ($1, $2, $3)
+        `, [userId, postId, realValue]);
+                    yield tm.query(`
+    update post
+    set points = points + $1
+    where id = $2
+      `, [realValue, postId]);
+                }));
+            }
             return true;
         });
     }
-    posts(limit, cursor) {
+    posts(limit, cursor, { req }) {
         return __awaiter(this, void 0, void 0, function* () {
             const realLimit = Math.min(50, limit);
             const realLimitPlusOne = realLimit + 1;
-            const replacements = [realLimitPlusOne];
+            const replacements = [realLimitPlusOne, req.session.userId];
             if (cursor) {
                 replacements.push(new Date(parseInt(cursor)));
             }
             const posts = yield typeorm_1.getConnection().query(`
-    select p.*, 
+   select p.*,
     json_build_object(
       'id', u.id,
       'username', u.username,
       'email', u.email,
       'createdAt', u."createdAt",
       'updatedAt', u."updatedAt"
-      ) creator
+      ) creator,
+    ${req.session.userId
+                ? '(select value from upvote where "userId" = $2 and "postId" = p.id) "voteStatus"'
+                : 'null as "voteStatus"'}
     from post p
     inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < $2` : ""}
+    ${cursor ? `where p."createdAt" < $3` : ""}
     order by p."createdAt" DESC
     limit $1
     `, replacements);
@@ -155,8 +173,9 @@ __decorate([
     type_graphql_1.Query(() => PaginatedPosts),
     __param(0, type_graphql_1.Arg("limit", () => type_graphql_1.Int)),
     __param(1, type_graphql_1.Arg("cursor", () => String, { nullable: true })),
+    __param(2, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:paramtypes", [Number, Object, Object]),
     __metadata("design:returntype", Promise)
 ], PostResolver.prototype, "posts", null);
 __decorate([

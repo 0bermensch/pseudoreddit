@@ -27,7 +27,7 @@ __decorate([
     __metadata("design:type", Number)
 ], Upvote.prototype, "userId", void 0);
 __decorate([
-    type_graphql_1.Field(),
+    type_graphql_1.Field(() => User_1.User),
     typeorm_1.ManyToOne(() => User_1.User, (user) => user.upvotes),
     __metadata("design:type", User_1.User)
 ], Upvote.prototype, "creator", void 0);
@@ -37,7 +37,7 @@ __decorate([
     __metadata("design:type", Number)
 ], Upvote.prototype, "postId", void 0);
 __decorate([
-    type_graphql_1.Field(),
+    type_graphql_1.Field(() => Post_1.Post),
     typeorm_1.ManyToOne(() => Post_1.Post, (post) => post.upvotes),
     __metadata("design:type", Post_1.Post)
 ], Upvote.prototype, "post", void 0);
